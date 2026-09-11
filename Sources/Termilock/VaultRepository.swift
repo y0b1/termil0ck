@@ -19,9 +19,11 @@ actor VaultRepository {
     }
 
     func unlock() async throws -> VaultDocument {
-        let key = try await keyProvider.loadOrCreateKey()
+        unlockedKey = nil
+        let vaultExists = FileManager.default.fileExists(atPath: fileURL.path)
+        let key = try await keyProvider.loadOrCreateKey(allowCreation: !vaultExists)
 
-        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+        guard vaultExists else {
             unlockedKey = key
             return VaultDocument()
         }

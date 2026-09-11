@@ -1,5 +1,24 @@
 # Release notes
 
+## 0.1.1 — Unreleased; provisioning required
+
+Implements Keychain-enforced biometric protection while retaining AES-256-GCM vault encryption.
+
+- Moves vault keys into the Data Protection Keychain with device-only accessibility and synchronization disabled.
+- Requires biometrics through Keychain access control, preserving the Touch ID-only policy.
+- Migrates the existing key only after reading back and verifying the protected copy; preserves the legacy copy if verification fails.
+- Stops on authentication, entitlement, key-conflict, and cleanup errors without falling back to unprotected storage.
+- Refuses to generate a new key when an existing vault is missing its key.
+- Clears any previous repository key before an unlock attempt.
+- Requires a provisioned Apple signing identity for bundling, and rejects stale or unprovisioned bundles during DMG packaging.
+
+**Validation:** debug and release builds pass; 25 Swift tests and 5 signing-entitlement tests pass. Migration tests use injected storage, not the user's Keychain.
+
+**Release blocker:** no macOS provisioning profile is installed for this app. A 0.1.1 DMG has not been produced. Real-device Keychain and Touch ID verification remains pending. The 0.1.0 DMG below is unchanged and does not contain this fix.
+
+**Migration compatibility:** after successful migration, the old 0.1.0 app cannot access the protected key. Do not downgrade. The encrypted vault file format is unchanged.
+
+
 ## 0.1.0 — September 11, 2026
 
 Termilock's first packaged local development release brings a compact credential vault to the macOS menu bar, with a drag-to-Applications installer.

@@ -48,6 +48,40 @@ final class VaultCryptoTests: XCTestCase {
         XCTAssertEqual(reopened, expected)
     }
 
+    func testExistingVaultDisallowsKeyCreation() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let file = root.appendingPathComponent("vault.tlvault")
+        try Data().write(to: file)
+        let repository = VaultRepository(fileURL: file, keyProvider: CreationCheckingProvider())
+        do {
+            _ = try await repository.unlock()
+            XCTFail("Expected missing-key error")
+        } catch KeychainKeyError.missingKey {
+        }
+    }
+
+    func testFailedReauthenticationClearsPreviouslyUnlockedKey() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("vault.tlvault")
+        let repository = VaultRepository(fileURL: file, keyProvider: InMemoryKeyProvider())
+        _ = try await repository.unlock()
+        try await repository.save(VaultDocument())
+        let damaged = Data()
+        try damaged.write(to: file)
+        do {
+            _ = try await repository.unlock()
+            XCTFail("Damaged vault must fail")
+        } catch { }
+        do {
+            try await repository.save(VaultDocument())
+            XCTFail("Failed unlock must clear the previous key")
+        } catch RepositoryError.locked { }
+        XCTAssertEqual(try Data(contentsOf: file), damaged)
+    }
+
     func testDamagedVaultDoesNotLeaveRepositoryWritable() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -73,5 +107,12 @@ final class VaultCryptoTests: XCTestCase {
             XCTFail("Expected a locked repository, got \(error)")
         }
         XCTAssertEqual(try Data(contentsOf: file), damagedBytes)
+    }
+}
+
+private struct CreationCheckingProvider: VaultKeyProviding {
+    func loadOrCreateKey(allowCreation: Bool) async throws -> SymmetricKey {
+        XCTAssertFalse(allowCreation)
+        throw KeychainKeyError.missingKey
     }
 }
